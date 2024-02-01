@@ -1,0 +1,22 @@
+from __future__ import division
+import statsmodels.api as sm
+from statsmodels.genmod.generalized_linear_model import GLM
+from statsmodels.tools.sm_exceptions import PerfectSeparationError
+from statsmodels.distributions.empirical_distribution import ECDF
+from scipy import stats
+from collections import Counter
+from itertools import chain
+import sys; sys.path.append(sys.argv[0])
+from . import functions as uf
+import statsmodels.api as sm
+import patsy
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from statsmodels.tools.sm_exceptions import ConvergenceWarning
+import warnings
+warnings.filterwarnings(
+    "error",
+    message='Maximum number of iterations has been exceeded',
+    category=ConvergenceWarning)
