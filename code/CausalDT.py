@@ -95,9 +95,6 @@ class MyRows:
         self.ref_name = None
         global args
         dep = args.dep
-        if dep =='mix':
-            self.ref_name = 'ref'
-            self.dep_val = rows['ref']
 
         self.corr_data = self.value
 
@@ -357,9 +354,9 @@ def partition(rows, question):
     for i in rows.index:
         row = rows.loc[i, :]
         if question.match(row):
-            true_rows = true_rows.append(row)
+            true_rows = pd.concat([true_rows, pd.DataFrame([row])], ignore_index=True)
         else:
-            false_rows = false_rows.append(row)
+            false_rows = pd.concat([false_rows, pd.DataFrame([row])], ignore_index=True)
     return true_rows, false_rows
 
 
@@ -753,47 +750,55 @@ def TreePruning(node):
     TreePruning(node.false_branch)
 
 def _main():
+
+    # Will get various arguements from the command line in the below way
+    # python script.py --hmax 4 --random True --pick 1000
     import argparse
 
+    # description parameter provides a brief description of what the script does.
     parser = argparse.ArgumentParser(
         description='A script for causal decision tree for continuous varible')
+    
+
     parser.add_argument(
         "--sp",
-        default=6,
+        default=3,
         type=int,
         help="Number of split for continuous  ")
+    
     parser.add_argument(
         "--hmax",
         default=5,
         type=int,
         help="Maximum height of the tree")
+    
     parser.add_argument(
         "--random",
         default=False,
         type=bool,
         help="Whether we random pick samples from original data (for testing)")
+    
     parser.add_argument(
         "--pick",
         default=2000,
         type=int,
         help="Number of random pick from the original data")
+    
     parser.add_argument(
         "--alpha",
         default=0.1,
         type=float,
         help="Significance level for correlation check")
+    
+    # changed
     parser.add_argument(
         "--dep",
-        default = 'Rank_Turn',
+        default = 'Predictions',
         type = str,
-        help = 'Dependent value of the tree: \n'
-               'Rank_Turn: turnover daily ranking ; \n'
-               'DayNetTurnover: Net turnover daily ranking ; \n'
-               'DayOut: Day change of out contracts; \n'
-               'PopRef: 1.0 if turnover rank<0.1 \n'
-               'mix: using Rank_Turn to run the tree construction, classification show PopRef'
+        help = 'It is the name for arguement that represents whether it is a anomaly or not'
     )
 
+    # Now using parser to initialise the arguements to be used in our code
     global args
     args = parser.parse_args()
     h_max = args.hmax
@@ -803,8 +808,8 @@ def _main():
     hsi_df = pd.read_csv('../data/input.csv')
 
     # only consider underlying HSI
-
     hsi_df = hsi_df.dropna()
+    hsi_df.drop(columns = ["time"], inplace = True)
 
 
     if random_flag:
@@ -817,107 +822,26 @@ def _main():
 
     print('Size of the sample{0},Dependent variable:{1}'.format(len(target),args.dep))
 
-
-    if args.dep=='Rank_Turn':
-        target['Last_Rank_Out'] =target.groupby("UNIQUE")['Rank_Out'].shift(1)
-        target['Last_Rank_Turn'] = target.groupby("UNIQUE")['Rank_Turn'].shift(1)
-        target['Last_DayOut'] = target.groupby("UNIQUE")['DayOut'].shift(1)
-        # our target is to see the investor decision based on last trading day stats
-        df_set = target[['RelaDisToC',
-                         'RelaDisToK',
-                         'TimeToMaturity',
-                         'Bull_Bear',
-                         'StarIssuer',
-                         'AQC',
-                         'LastTurnover',
-                         'FinCost',  #  (Ratio*P - (UnderlyP-Strike)*BB)/Strike
-                         'OutRatio',
-                         'LastDayReturn',
-                         'Theo_Lev',
-                         'Last_Rank_Out', 'Last_Rank_Turn','Last_DayOut','Rank_Turn']].dropna()
-
-
-        df = MyRows(df_set, 'Rank_Turn')
-        mytree = build_tree(df, h_max)
-    elif args.dep=='DayOut':
-        df_set = target[['RelaDisToC',
-                         'RelaDisToK',
-                         'TimeToMaturity',
-                         'Bull_Bear',
-                         'StarIssuer',
-                         'AQC',
-                         'LastTurnover',
-                         'FinCost',  #  (Ratio*P - (UnderlyP-Strike)*BB)/Strike
-                         'OutRatio',
-                         'LastDayReturn',
-                         'Theo_Lev',
-                         'Rank_Out', 'Rank_Turn','DayOut']].dropna()
-        df = MyRows(df_set, 'DayOut')
-        mytree = build_tree(df, h_max)
-
-    elif args.dep=='DayNetTurnover':
-        df_set = target[['LastMaxReturn',
-                         'Moneyness_abs',
-                         'TimeToMaturity',
-                         'Bull_Bear',
-                         'star_issuer',
-                         'AQC',
-                         'LastTurnover',
-                         'FinCost',
-                         'Ratio_of_issue_still_out_in_market_',
-                         'DayNetTurnover', 'Volume']].dropna()
-        df = MyRows(df_set, 'DayNetTurnover')
-        mytree = build_tree(df, h_max)
-
-    elif args.dep == 'PopRef':
-        target = target.dropna()
-        target['PopRef'] = (target['Rank_Turn'] < 0.1).astype('int')
-        df_set = target[['RelaDisToC',
-                         'RelaDisToK',
-                         'TimeToMaturity',
-                         'Bull_Bear',
-                         'StarIssuer',
-                         'Issuer',
-                         'AQC',
-                         'FinCost',  # (Ratio*P - (UnderlyP-Strike)*BB)/Strike
-                         'LastDayReturn_p', 'LastDayReturn_n',
-                         'Last_OutRatio',  # ability to control the price
-                         'Last_Theo_Lev',
-                         'Last_Rank_Out', 'Last_Rank_Turn', 'Last_DayOut_p', 'Last_DayOut_n', 'PopRef']].dropna()
-        df = MyRows(df_set, 'PopRef')
-        mytree = build_tree(df, h_max)
-    elif args.dep == 'mix':
-        target = target.dropna()
-        target['PopRef'] = (target['Rank_Turn'] < 0.1).astype('int')
-        df_set = target[['RelaDisToC',
-                         'RelaDisToK',
-                         'TimeToMaturity',
-                         'Bull_Bear',
-                         'StarIssuer',
-                         #'Issuer',
-                         'AQC',
-                         'FinCost',  # (Ratio*P - (UnderlyP-Strike)*BB)/Strike
-                         'LastDayReturn_p', 'LastDayReturn_n',
-                         'Last_OutRatio',  # ability to control the price
-                         'Last_Theo_Lev',
-                         'Last_Rank_Out', 'Last_Rank_Turn', 'Last_DayOut_p', 'Last_DayOut_n', 'PopRef','Rank_Turn']].dropna()
-        df_set = df_set.rename(columns = {'Rank_Turn':'ref'})
-        df = MyRows(df_set, 'PopRef')
-        mytree = build_tree(df, h_max)
-
-    else:
-        raise ValueError('Not implemented dependent name')
+    df = MyRows(target, 'Predictions')
+    mytree = build_tree(df, h_max)
 
     for i in range(h_max):
         TreePruning(mytree)
 
     import time
     time.sleep(2)
-    var_num = len(df_set.columns)
-    SampleSize = len(df_set)
+
+    # number of columns in that dataset
+    var_num = len(target.columns)
+
+
+    SampleSize = len(target)
+
     filename = '../OutputCDT/'+args.dep+'_tree' + '_sp_' + \
         str(args.sp) + '_h_' + str(args.hmax) +'_r_' + str(args.random) + '_var_'+str(var_num)+'N'+str(SampleSize)
+    
     PrintTreeFile = open(filename+'.txt', 'w')
+    
     print('Printing Tree on ', filename)
     print('digraph Tree {\nnode [shape=box] ;\n',file=PrintTreeFile)
     print_tree(mytree, sourceFile=PrintTreeFile)
@@ -929,6 +853,7 @@ def _main():
 
     with open(filename+'.txt', "r") as myfile:
         my_dot_data = myfile.read()
+    
     # Draw graph
     import pydotplus
     graph = pydotplus.graph_from_dot_data(my_dot_data)
