@@ -88,10 +88,16 @@ def turnover_class(Y):
 class MyRows:
 
     def __init__(self, rows, outcome_col):
+        # dataframe
         self.value = rows
+
+        # outcome col name
         self.dependent_name = outcome_col
+
+        # Series --> Outcome var
         self.dependent = rows[self.dependent_name]
         self.dep_val = self.dependent
+
         self.ref_name = None
         global args
         dep = args.dep
@@ -112,6 +118,8 @@ class MyRows:
         if np.isnan(alpha):
             global args
             alpha = args.alpha
+
+        # DataFrames
         df = self.value
         outcome_col = self.dependent_name
 
@@ -121,19 +129,14 @@ class MyRows:
         if len(df) < 3:
             return df
 
-        # change '-' in the column names into '_'
-        df.columns = df.columns.str.strip().str.replace('-', '_')
-
         # only get numerical columns to check if
-
         no_col = df.select_dtypes(
             include=['int', 'float',
                      'int64',
                      'float64']).columns
+        
         if outcome_col in no_col:
             no_col = no_col.drop(outcome_col)
-        if 'ref' in no_col:
-            no_col  = no_col.drop('ref')
 
         for col in no_col:
             arr = df[col]
@@ -156,7 +159,9 @@ def find_best_question(Rows, question_excluded):
     """Find the best question to ask by iterating over every feature / value
     and calculating the information gain.
     para: question_excluded, questions already asked during building the tree"""
+
     Rows.get_correlated_features()
+    
     rows, outcome_col = Rows.corr_data, Rows.dependent_name
     best_ceffect = 0  # keep track of the best information gain
     best_question = None  # keep train of the feature / value that produced it
